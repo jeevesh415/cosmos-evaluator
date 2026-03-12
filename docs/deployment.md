@@ -55,6 +55,8 @@ Replace `your-registry.example.com/cosmos-evaluator` with your actual registry p
 
 ## Environment Configuration for Production
 
+Please add the following environment variables to a `~/.cosmos_evaluator/.env` file for your deployment environment configuration:
+
 ### Port Configuration
 
 The `UVICORN_PORT` environment variable controls the port the service listens on inside the container. This is useful when running multiple services on the same host or behind a load balancer:
@@ -67,7 +69,7 @@ If not set, the service uses its default port (8000 or 8080 depending on the ser
 
 ### Storage Provider
 
-For staging or production, use S3 as the storage backend. Add the following environment variables to a `~/.cosmos_evaluator/.env` file:
+The Obstacle Correspondence and VLM Preset checks use S3 as the storage backend for staging or production:
 
 | Variable | Description |
 |----------|-------------|
@@ -88,6 +90,20 @@ The VLM Preset and Attribute Verification checks require API keys for their mode
 |----------|---------|-------------|
 | `BUILD_NVIDIA_API_KEY` | VLM Preset, Attribute Verification | API key for LLM/VLM endpoints ([build.nvidia.com](https://build.nvidia.com/)) |
 
+### Multistorage Configuration
+
+The Hallucination and Attribute Verification checks use [NVIDIA Multistorage](https://nvidia.github.io/multi-storage-client/references/configuration.html) to access video inputs from cloud storage. Configure it via the `MULTISTORAGE_CONFIG` environment variable in `~/.cosmos_evaluator/.env`.
+
+| Variable | Used By | Description |
+|----------|---------|-------------|
+| `MULTISTORAGE_CONFIG` | Hallucination, Attribute Verification | JSON configuration for storage backend connectivity |
+
+The value is a JSON object that defines storage profiles and path mappings.
+
+When setting this in the `.env` file, compact the JSON onto a single line and wrap it in single quotes to avoid parsing issues.
+
+For more information, see the [Multistorage Configuration Example](getting-started.md#multistorage-configuration-example).
+
 ## Running in Production
 
 ### Obstacle Correspondence (GPU required)
@@ -103,6 +119,8 @@ docker run \
   obstacle-correspondence:1.15.0
 ```
 
+> Requires [Storage Provider](#storage-provider) configuration in the env file.
+
 ### VLM Preset
 
 ```bash
@@ -112,28 +130,29 @@ docker run \
   vlm:1.15.0
 ```
 
+> Requires [`BUILD_NVIDIA_API_KEY`](#api-keys) and [Storage Provider](#storage-provider) configuration in the env file.
+
 ### Hallucination
 
 ```bash
 docker run \
-  -e MULTISTORAGE_CONFIG='{"profiles":{ ... }}' \
+  --env-file ~/.cosmos_evaluator/.env \
   -p 8080:8080 \
   hallucination-checker:1.0.0
 ```
 
-> **Note:** For details on configuring `MULTISTORAGE_CONFIG`, see the [Multistorage Configuration Example](https://github.com/nvidia-cosmos/cosmos-evaluator/blob/main/docs/getting-started.md#multistorage-configuration-example).
+> Requires [`MULTISTORAGE_CONFIG`](#multistorage-configuration) in the env file.
 
 ### Attribute Verification
 
 ```bash
 docker run \
-  -e BUILD_NVIDIA_API_KEY=your_api_key \
-  -e MULTISTORAGE_CONFIG='{"profiles":{ ... }}' \
+  --env-file ~/.cosmos_evaluator/.env \
   -p 8080:8080 \
   attribute-verification-checker:1.0.0
 ```
 
-> **Note:** For details on configuring `MULTISTORAGE_CONFIG`, see the [Multistorage Configuration Example](https://github.com/nvidia-cosmos/cosmos-evaluator/blob/main/docs/getting-started.md#multistorage-configuration-example).
+> Requires [`BUILD_NVIDIA_API_KEY`](#api-keys) and [`MULTISTORAGE_CONFIG`](#multistorage-configuration) in the env file.
 
 ### Verifying the Service
 
