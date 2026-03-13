@@ -10,14 +10,26 @@
   - Docker login to nvcr.io by following the steps found in [create an API key](https://org.ngc.nvidia.com/setup/api-keys).
 - **NVIDIA GPU with CUDA** (obstacle check only) — Required for the Obstacle check's segmentation models. CPU mode is available but significantly slower.
 - **Git** — To clone the repository
+- **Git LFS** — Required if you use the repo’s sample data under `checks/sample_data/`. Those files are stored as LFS pointers; without `git lfs pull`, checkers see 133-byte pointer files and fail with opaque errors (e.g. FFmpeg “moov atom not found”).
 - **Storage Provider Credentials** — Checkers require a connection to a storage provider (S3 is recommended) to store video and data inputs. Ensure you have an S3 bucket set up and have credentials with read access to S3.
-- **API Endpoints for LLM and VLM** — The VLM checker and attribute verification checker require connections to LLM and VLM endpoints. See the [Setting up your LLM and VLM API key](#setting-up-your-llm-and-vlm-api-key) section to get free, limited access to these endpoints for testing through [build.nvidia.com](https://build.nvidia.com/).
+- **Endpoints for LLM and VLM** — The VLM checker and attribute verification checker require connections to a _deployed_ LLM and VLM.
+  - See the [Setting up your LLM and VLM API key](#setting-up-your-llm-and-vlm-api-key) section to get free, limited access to these endpoints for testing through [build.nvidia.com](https://build.nvidia.com/).
+  - See the [Deploy Cosmos Reason 2 NIM](https://build.nvidia.com/nvidia/cosmos-reason2-8b/deploy) to deploy Cosmos Reason 2 or any other VLM on your own infrastructure and leverage these endpoints.
 
 ## Clone the repo
 ```bash
 git clone https://github.com/nvidia-cosmos/cosmos-evaluator.git
 cd cosmos-evaluator
 ```
+
+If you plan to use the sample data in `checks/sample_data/`, pull the actual files with Git LFS:
+
+```bash
+git lfs install
+git lfs pull
+```
+
+Without this step, files in that directory are LFS pointers and checks will fail (e.g. “moov atom not found” when processing video).
 
 ## Repo Setup
 
@@ -28,6 +40,7 @@ cd cosmos-evaluator
 | **Python 3** | 3.5+ | Must be available as `python3` |
 | **Docker** | 28.1.1+ | [Docker Engine](https://docs.docker.com/engine/install/) on Linux, [Colima](https://github.com/abiosoft/colima) on macOS |
 | **Git** | 2.49.0+ | For cloning and LFS support |
+| **Git LFS** | 3.0+ | Required for `checks/sample_data/` (video and other binaries) |
 | **NVIDIA GPU Driver** | 570.124.06+ | Required for GPU-accelerated checks (Obstacle) |
 | **NVIDIA Container Toolkit** | 1.16.2+ | Required for `--gpus` flag in Docker |
 
@@ -134,6 +147,8 @@ curl -X POST "http://localhost:8080/process" \
 
 ### Obstacle Check
 
+> **This check has no prebuilt container.** It requires a local build via `dazel`, a separate ONNX model download from NGC, and an NVIDIA GPU driver >=570. See the steps below before attempting to run.
+
 #### Download the SegFormer Model
 
 > **Note:** The Obstacle check's dynamic processor requires the CitySemsegFormer ONNX model so it is not available as a prebuilt container. Download the `deployable_onnx_v1.0` zip file from the [NGC Catalog](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/citysemsegformer?version=deployable_onnx_v1.0), extract the `.onnx` file, and save it as `checks/utils/citysemsegformer.onnx`.
@@ -154,11 +169,11 @@ The VLM check also uses the [StorageProvider framework](../services/framework/st
 | `COSMOS_EVALUATOR_STORAGE_ACCESS_KEY` | No | — | AWS access key (also reads `AWS_ACCESS_KEY_ID`) |
 | `COSMOS_EVALUATOR_STORAGE_SECRET_KEY` | No | — | AWS secret key (also reads `AWS_SECRET_ACCESS_KEY`) |
 
-The storage type determines how the `augmented_video_url` in the request is resolved. With `s3`, it can be an `s3://` URI, a presigned URL, or any HTTPS URL. With `local`, it is treated as a local filesystem path.
+The storage type determines how the `augmented_video_url` in the request is resolved. With `s3`, it can be an `s3://` URI, a presigned URL, or any HTTPS URL. With `local`, it is the mounted filesystem path (e.g. `/data/video.mp4`).
 
 If you already have AWS credentials in a `~/.aws/.env` file, the storage settings will also read from `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` as fallbacks if passed via `--env-file` below.
 
-The VLM check requires access to a Vision-Language Model endpoint. To get a free API key for testing, visit any model on [build.nvidia.com](https://build.nvidia.com/), click **View Code**, then **Generate API Key**. The key will start with `nvapi-`.
+The VLM check requires access to a Vision-Language Model endpoint. See [Setting up your LLM and VLM API key](#setting-up-your-llm-and-vlm-api-key) for how to generate a key that works for inference.
 
 Add `~/.cosmos_evaluator/.env` with your API key environment variable:
 
@@ -173,8 +188,14 @@ See the [VLM Preset Check guide](checks/vlm-preset.md#endpoint-configuration) fo
 
 #### Start the Service
 
+The commands below use the repo sample data (run `git lfs pull` first). To use your own videos, mount your directory into the container with `-v`.
+
 ```bash
-docker run --env-file ~/.cosmos_evaluator/.env -p 8000:8000 nvcr.io/nvidia/cosmos/vlm:1.15.0
+docker run --env-file ~/.cosmos_evaluator/.env \
+  -e COSMOS_EVALUATOR_STORAGE_TYPE=local \
+  -v $(pwd)/checks/sample_data/cosmos_public:/data \
+  -p 8000:8000 \
+  nvcr.io/nvidia/cosmos/vlm:1.15.0
 ```
 
 Verify that the service is running:
@@ -189,7 +210,7 @@ curl http://localhost:8000/health
 curl -X POST http://localhost:8000/process/preset \
   -H "Content-Type: application/json" \
   -d '{
-    "video_path": "/path/to/generated_video.mp4",
+    "augmented_video_url": "/data/01ce78ad-9e9a-4df9-95d1-1d50e41a04ce_764657799000_764677799000_0_Morning.30fps.mp4",
     "preset_conditions": {
       "name": "environment",
       "weather": "Clear Sky",
@@ -204,7 +225,7 @@ curl -X POST http://localhost:8000/process/preset \
 
 #### Setup Environment Variables
 
-The attribute verification check NVIDIA Multistorage configuration to be set, and also requires an API key to be set for the VLM and LLM connections.
+The attribute verification check requires NVIDIA Multistorage configuration to be set, and also requires an API key to be set for the VLM and LLM connections.
 
 To set up the environment variable, first copy the `.env.example` template from the attribute verification check:
 
@@ -218,7 +239,7 @@ To set the Multistorage configuration, see the [Multistorage Configuration Examp
 
 When setting the Multistorage environment variable in the ENV file, compact the JSON onto the same line to avoid parsing issues. This ENV should also be wrapped in single quotes (e.g. `'{/* your config json here */}'`).
 
-To set the API key, get the API key from your VLM and LLM services. This can be an API key from build.nvidia.com models, or an API key for any models with an OpenAI API interface. The same API key will be shared between the LLM and VLM calls. If an API key is not needed, this variable can be left empty or unset.
+To set the API key, see [Setting up your LLM and VLM API key](#setting-up-your-llm-and-vlm-api-key). The same key is shared between LLM and VLM calls. You can also use an API key for any endpoint with an OpenAI-compatible interface. If an API key is not needed, this variable can be left empty or unset.
 
 The LLM and VLM endpoint and model can be configured in the default config for the services, or overridden in the checker /process request. See [LLM and VLM model setup](checks/attribute-verification.md#model-setup) for more information on setting the LLM and VLM endpoints and model.
 
@@ -302,7 +323,7 @@ The Multistorage configuration should be constructed like this:
       "storage_provider":{
         "type":"s3",
         "options":{
-          "base_path":"<bucket-name>",
+          "base_path":"<bucket-name>"
         }
       },
       "credentials_provider":{
@@ -326,4 +347,22 @@ When setting the Multistorage environment variable in the ENV file, compact the 
 
 All checkers use OpenAI-compatible endpoints for the LLM and VLM endpoints. By default, the checkers will point to [build.nvidia.com](https://build.nvidia.com/) for these endpoints. While this is a great way to get started with the checkers, it is not recommended to use the [build.nvidia.com](https://build.nvidia.com/) endpoints for production use. For production, please either download the LLM and VLM NIMs and run them locally, or connect to a stable external endpoint of your choice.
 
-To get an API key that can connect to [build.nvidia.com](https://build.nvidia.com/), you may visit any model on the [Build Website](https://build.nvidia.com/qwen/qwen3.5-397b-a17b), then click `View Code`, then click `Generate API Key`. Take the API key (commonly starts with `nvapi-`), and use it as your environment variable for API key (e.g. `BUILD_NVIDIA_API_KEY` for the attribute verification checker).
+> **Important:** The key must be generated from the specific model's page, not from your NGC account settings. A key from account settings will authenticate to `GET /v1/models` (health checks pass) but return **403** on inference calls (`POST /v1/chat/completions`).
+
+To generate a key:
+
+1. Go to the model page on build.nvidia.com (e.g. [Qwen 3.5-397B](https://build.nvidia.com/qwen/qwen3.5-397b-a17b))
+2. Click **View Code**, then click **Generate API Key**
+3. Copy the key (it starts with `nvapi-`) and set it as `BUILD_NVIDIA_API_KEY`
+
+Verify the key works for inference (not just model listing):
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" \
+  -X POST https://integrate.api.nvidia.com/v1/chat/completions \
+  -H "Authorization: Bearer $BUILD_NVIDIA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "qwen/qwen3.5-397b-a17b", "messages": [{"role": "user", "content": "say hello"}], "max_tokens": 10}'
+```
+
+A `200` response confirms the key has inference entitlement. A `403` means the key was generated from account settings — regenerate it from the model page.

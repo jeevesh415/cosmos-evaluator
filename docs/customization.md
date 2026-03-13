@@ -57,7 +57,7 @@ source build/env_setup.sh
 dazel build //...    # ~5 min first build, ~4 sec cached
 ```
 
-> **Note:** GPU-dependent features (Obstacle check's SegFormer/CWIP models) require a Linux machine with an NVIDIA GPU. macOS can run the all other checkers and non-GPU code paths.
+> **Note:** GPU-dependent features (Obstacle check's SegFormer/CWIP models) require a Linux machine with an NVIDIA GPU. macOS can run all other checkers and non-GPU code paths.
 
 
 ## Linting and Formatting

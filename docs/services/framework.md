@@ -244,12 +244,13 @@ curl http://localhost:8082/health
 # Get default config
 curl http://localhost:8082/config
 
-# Process a request
+# Process a request (example uses repo sample data; mount with -v $(pwd)/checks/sample_data/cosmos_public:/data for local mode)
 curl -X POST http://localhost:8082/process \
   -H "Content-Type: application/json" \
   -d '{
-    "rds_hq_url": "https://storage.example.com/rds_hq.zip",
-    "augmented_video_url": "https://storage.example.com/video.mp4",
+    "clip_id": "01ce78ad-9e9a-4df9-95d1-1d50e41a04ce_764657799000_764677799000",
+    "rds_hq_url": "/data/rds_hq.zip",
+    "augmented_video_url": "/data/01ce78ad-9e9a-4df9-95d1-1d50e41a04ce_764657799000_764677799000_0_Morning.30fps.mp4",
     "camera_name": "camera_front_wide_120fov"
   }'
 ```

@@ -94,7 +94,7 @@ The JSON results will look like this
   "clip_id": "55e7790f-8548-410d-a7de-8328bfc51c78",
   "passed": true,
   "threshold": 0.682,
-  "score": 0.8255804747848313, // Score calculated from  1 - (total_hallucinated/total_augmented)
+  "score": 0.8255804747848313,
   "total_frames": 31,
   "total_hallucinated_dynamic_pixels": 15422,
   "total_augmented_dynamic_pixels": 88419

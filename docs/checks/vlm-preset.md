@@ -49,6 +49,10 @@ A JSON object specifying the expected environment. Currently, the **environment*
 | region_geography | Dense City Center, Suburban Area, Residential Area, Rural/Countryside, Highway/Freeway, Tunnels/Bridges, Hilly/Mountainous/Forest, Coastal, Desert |
 | road_surface_conditions | Dry, Wet, Slippery, Damaged, Ignorable road debris |
 
+### Deployed VLM Endpoint
+We recommend [deploying the Cosmos Reason 2 NIM](https://build.nvidia.com/nvidia/cosmos-reason2-8b/deploy) for optimal results. See [Endpoint Configuration](#endpoint-configuration) for how to add a custom VLM endpoint.
+> NOTE: If using the VLM Checker container, you can either [rebuild the container](#build-the-container) or use a volume mount to override `endpoints.json` at runtime — see [Using Your Own Endpoint](#using-your-own-endpoint).
+
 ## Usage
 
 ### CLI
@@ -69,7 +73,7 @@ cat > preset.json << 'EOF'
 EOF
 ```
 
-Run the VLM preset check:
+Run the VLM preset check (if using repo sample data, run `git lfs pull` first; otherwise you may see “moov atom not found” because the files are LFS pointers):
 
 ```bash
 dazel run //checks/vlm:run -- local \
@@ -101,7 +105,9 @@ This builds the OCI image and loads it into the local Docker daemon as `vlm:<ver
 
 #### Setup Environment Variables
 
-The VLM check requires an API key for the Vision-Language Model endpoint. To get a free API key for testing, visit any model on [build.nvidia.com](https://build.nvidia.com/), click **Explore**, then **Get API Key**.
+The VLM check requires an API key for the Vision-Language Model endpoint. To get a free API key for testing, go to the model page on [build.nvidia.com](https://build.nvidia.com/) (e.g. [Qwen 3.5-397B](https://build.nvidia.com/qwen/qwen3.5-397b-a17b)), click **View Code**, then click **Generate API Key**. The key starts with `nvapi-`.
+
+> **Important:** Generate the key from the model page, not from your NGC account settings. An account-level key passes health checks but returns **403** on inference calls. See [Setting up your LLM and VLM API key](../getting-started.md#setting-up-your-llm-and-vlm-api-key) for details and a validation command.
 
 Create a `~/.cosmos_evaluator/.env` file with your API key:
 
@@ -115,6 +121,8 @@ EOF
 See the [Endpoint Configuration](#endpoint-configuration) section for details on configuring VLM endpoints and providers.
 
 #### Start the Service
+
+If using repo sample data, run `git lfs pull` first so the mounted files are real videos, not LFS pointers (otherwise you may see “moov atom not found”).
 
 ```bash
 # Running in local mode with sample data mounted at /data
@@ -151,7 +159,7 @@ curl -X POST http://localhost:8000/process/preset \
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `augmented_video_url` | Yes | — | URL or local path to the video file |
+| `augmented_video_url` | Yes | — | URL or mounted filesystem path to the video file (e.g. `/data/video.mp4`) |
 | `preset_conditions` | Yes | — | Preset conditions object (see [Preset Conditions](#preset-conditions) above) |
 | `preset_check_config` | No | None | Partial configuration overrides (dict). Merged into the defaults from `checks/config.yaml` — only the fields you specify are overridden. Use the `/config` endpoint to see the defaults. |
 
@@ -248,6 +256,17 @@ av.vlm:
 ```
 
 The endpoint must be compatible with the [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat) format, as the client uses the `openai` Python library.
+
+#### Container override
+
+When using the prebuilt container, you can override `endpoints.json` with a volume mount instead of rebuilding:
+
+```bash
+docker run --env-file ~/.cosmos_evaluator/.env \
+  -v $(pwd)/my_endpoints.json:/app/rest_api_deployment.runfiles/_main/checks/vlm/config/endpoints.json:ro \
+  -v $(pwd)/checks/sample_data/cosmos_public:/data \
+  -p 8000:8000 vlm:1.15.0
+```
 
 ## Output Format
 

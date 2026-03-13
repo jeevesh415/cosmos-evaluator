@@ -151,7 +151,7 @@ EOF
 
 If you already have AWS credentials in a `~/.aws/.env` file, the storage settings will also read from `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` as fallbacks if passed via `--env-file` below.
 
-The storage type also determines how input URLs in the `/process` request are resolved. With `s3`, input URLs can be `s3://` URIs, presigned URLs, or any HTTPS URL. With `local`, input paths are treated as local filesystem paths. Output storage follows the same provider — S3 uploads for `s3`, local file copies for `local`.
+The storage type also determines how input URLs in the `/process` request are resolved. With `s3`, input URLs can be `s3://` URIs, presigned URLs, or any HTTPS URL. With `local`, input paths are mounted filesystem paths. Output storage follows the same provider — S3 uploads for `s3`, local file copies for `local`.
 
 #### Start the Service
 
@@ -176,6 +176,7 @@ curl http://localhost:8000/health
 curl -X POST http://localhost:8000/process \
   -H "Content-Type: application/json" \
   -d '{
+    "clip_id": "01ce78ad-9e9a-4df9-95d1-1d50e41a04ce_764657799000_764677799000",
     "camera_name": "camera_front_wide_120fov",
     "augmented_video_url": "/data/01ce78ad-9e9a-4df9-95d1-1d50e41a04ce_764657799000_764677799000_0_Morning.30fps.mp4",
     "rds_hq_url": "/data/rds_hq.zip",
@@ -191,7 +192,7 @@ curl -X POST http://localhost:8000/process \
 |-------|----------|---------|-------------|
 | `clip_id` | Yes | — | Clip identifier |
 | `rds_hq_url` | Yes | — | URL to the RDS-HQ dataset archive |
-| `augmented_video_url` | Yes | — | URL to the generated video |
+| `augmented_video_url` | Yes | — | URL or mounted filesystem path to the generated video (e.g. `/data/video.mp4`) |
 | `camera_name` | Yes | — | Camera stream name (e.g., `camera_front_wide_120fov`) |
 | `config` | No | None | Full configuration dictionary (replaces the default config entirely). If omitted, the default config from `checks/config.yaml` is used. Use the `/config` endpoint to retrieve the defaults as a starting point. |
 | `model_device` | No | `cuda` | Device for model inference: `cuda` or `cpu` |
